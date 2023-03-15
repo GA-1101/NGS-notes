@@ -36,23 +36,28 @@ conda用于提供生信分析的基础软件环境，包管理以及环境管理
 
 ### 数据预处理-去重复
 
-`java -jar /home/zhanglei/software/picard.jar MarkDuplicates \
+```
+java -jar /home/zhanglei/software/picard.jar MarkDuplicates \
 	I=YN20220865-M35_S1_bwa.sorted.bam \
 	O=YN20220865-M35_S1_bwa.sorted.markdup.bam \
-	M=YN20220865-M35_S1.markdup_metrics.txt`
+	M=YN20220865-M35_S1.markdup_metrics.txt
+```
 
 ### 数据预处理-碱基质量重校正
 
-`gatk BaseRecalibrator \
+```
+gatk BaseRecalibrator \
     -I YN20220865-M35_S1_bwa.sorted.markdup.bam \
     -R /home/zhanglei/ref/GCF_GRCh38.p14_genomic.fna \
     --known-sites /home/zhanglei/ref/VCF/1000G_phase1.snps.high_confidence.hg38.vcf \
     --known-sites /home/zhanglei/ref/VCF/Mills_and_1000G_gold_standard.indels.hg38.vcf \
-    -O YN20220865-M35_S1.recal_data.table`
+    -O YN20220865-M35_S1.recal_data.table
+```
 
 ### Variants Calling
 
-`gatk --java-options "-Xmx4g" HaplotypeCaller \
+```
+gatk --java-options "-Xmx4g" HaplotypeCaller \
     -R /home/zhanglei/ref/GCF_GRCh38.p14_genomic.fna \
     -I fixed_YN20220865-M35_S1_bwa.sorted.markdup.bam \
     -A QualByDepth \
@@ -62,4 +67,5 @@ conda用于提供生信分析的基础软件环境，包管理以及环境管理
     -A FisherStrand \
     -A StrandOddsRatio \
     -A Coverage \
-    -O YN20220865-M35_S1.HC.vcf`
+    -O YN20220865-M35_S1.HC.vcf
+```
