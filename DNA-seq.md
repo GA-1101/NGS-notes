@@ -10,6 +10,8 @@ conda用于提供生信分析的基础软件环境，包管理以及环境管理
 
 ### Jupyter
 
+安装Jupyter Notebook，Jupyter Notebook是用于数据分析处理工作的一种集成开发环境，可以根据不同的conda环境，启动相应的内核，用于编写和调试脚本。
+
 `conda activate jupyter`
 
 `jupyter notebook --ip=172.16.100.80 --port=8890 --no-browser`
@@ -21,14 +23,20 @@ conda用于提供生信分析的基础软件环境，包管理以及环境管理
 `conda activate DNA-seq`
 
 ### 质量控制
+
+在做read质量值分析的时候，FastQC并不单独查看具体某一条read中碱基的质量值，而是将Fastq文件中所有的read数据都综合起来一起分析。
 `fastqc /home/DATA/raw_data/*.fastq.gz -o /home/zhanglei/test/fastqc_out_dir/ -t 32`
 
 ### 建立参考基因组Index
+
+
 `samtools faidx GCF_GRCh38.p14_genomic.fna`
 
 `gatk CreateSequenceDictionary -R GCF_GRCh38.p14_genomic.fna`
 
 ### 序列比对
+
+
 `bwa mem -t 32 /home/zhanglei/ref/Hg_38/GRCh38 ./raw_data/YN20220865-M35_S1_R1_001.fastq.gz ./raw_data/YN20220865-M35_S1_R2_001.fastq.gz > YN20220865-M35_S1_bwa.sam`
 
 `samtools view -S -b -h YN20220865-M35_S1_bwa.sam -o YN20220865-M35_S1_bwa.bam`
@@ -46,7 +54,28 @@ java -jar /home/zhanglei/software/picard.jar MarkDuplicates \
 	M=YN20220865-M35_S1.markdup_metrics.txt
 ```
 
+### 数据预处理-添加ReadGroups（可选）
+
+某些数据可能因为bam文件中缺少ReadGroups，后续变异检测步骤会报错： `the sample list cannot be null or empty`
+此时可以通过picard的 `AddOrReplaceReadGroups` 功能手动添加这一信息。
+
+```
+java -jar /home/zhanglei/software/picard.jar AddOrReplaceReadGroups \
+    I=YN20220865-M35_S1_bwa.sorted.markdup.bam \
+    O=fixed_YN20220865-M35_S1_bwa.sorted.markdup.bam \
+    SORT_ORDER=coordinate \
+    RGID=foo \
+    RGLB=bar \
+    RGPL=illumina \
+	RGPU=unit1 \
+    RGSM=Sample1 \
+    CREATE_INDEX=True
+```
+
+
 ### 数据预处理-碱基质量重校正 - Base (Quality Score) Recalibration
+
+此步骤可能非必要，请参照后续更新内容。
 
 ```
 gatk BaseRecalibrator \
