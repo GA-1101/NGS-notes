@@ -14,55 +14,57 @@ conda用于提供生信分析的基础软件环境，包管理以及环境管理
 
 `conda activate jupyter`
 
-`jupyter notebook --ip=172.16.100.80 --port=8890 --no-browser`
+`jupyter notebook --ip=<ip> --port=<port> --no-browser`
 
 
 ## Pipeline
 
 流程环境：
-`conda activate DNA-seq`
+`conda activate <environment>`
 
 ### 质量控制
 
 在做read质量值分析的时候，FastQC并不单独查看具体某一条read中碱基的质量值，而是将Fastq文件中所有的read数据都综合起来一起分析。
-`fastqc /home/DATA/raw_data/*.fastq.gz -o /home/zhanglei/test/fastqc_out_dir/ -t 32`
+`fastqc <fastq path> -o <output directory> -t <tread number>`
 
 ### 建立参考基因组Index
 
 
-`samtools faidx GCF_GRCh38.p14_genomic.fna`
+`samtools faidx <ref.fasta>`
 
-`gatk CreateSequenceDictionary -R GCF_GRCh38.p14_genomic.fna`
+`gatk CreateSequenceDictionary -R <ref.fasta>`
 
 ### 序列比对
 
 
-`bwa mem -t 32 /home/zhanglei/ref/Hg_38/GRCh38 ./raw_data/YN20220865-M35_S1_R1_001.fastq.gz ./raw_data/YN20220865-M35_S1_R2_001.fastq.gz > YN20220865-M35_S1_bwa.sam`
+`bwa mem -t 32 <ref files path> <Sample_Read1.fastq.gz> <Sample_Read2.fastq.gz> > Sample_bwa.sam`
 
-`samtools view -S -b -h YN20220865-M35_S1_bwa.sam -o YN20220865-M35_S1_bwa.bam`
+`samtools view -S -b -h Sample_bwa.sam -o Sample_bwa.bam`
 
 ### 数据预处理-排序
 
-`samtools sort -@ 32 -O bam -o YN20220865-M35_S1_bwa.sorted.bam YN20220865-M35_S1_bwa.bam`
+`samtools sort -@ 32 -O bam -o Sample_bwa.sorted.bam Sample_bwa.bam`
 
 ### 数据预处理-去重复
 
 ```
-java -jar /home/zhanglei/software/picard.jar MarkDuplicates \
-	I=YN20220865-M35_S1_bwa.sorted.bam \
-	O=YN20220865-M35_S1_bwa.sorted.markdup.bam \
-	M=YN20220865-M35_S1.markdup_metrics.txt
+java -jar picard.jar MarkDuplicates \
+	I=Sample_bwa.sorted.bam \
+	O=Sample_bwa.sorted.markdup.bam \
+	M=Sample.markdup_metrics.txt
 ```
 
 ### 数据预处理-添加ReadGroups（可选）
 
-某些数据可能因为bam文件中缺少ReadGroups，后续变异检测步骤会报错： `the sample list cannot be null or empty`
+某些数据可能因为bam文件中缺少ReadGroups，后续变异检测步骤报错： `the sample list cannot be null or empty`
 此时可以通过picard的 `AddOrReplaceReadGroups` 功能手动添加这一信息。
 
+相关解决方案参考自[GATK论坛](https://gatk.broadinstitute.org/hc/en-us/articles/360035532352-Errors-about-read-group-RG-information)。
+
 ```
-java -jar /home/zhanglei/software/picard.jar AddOrReplaceReadGroups \
-    I=YN20220865-M35_S1_bwa.sorted.markdup.bam \
-    O=fixed_YN20220865-M35_S1_bwa.sorted.markdup.bam \
+java -jar picard.jar AddOrReplaceReadGroups \
+    I=Sample_bwa.sorted.markdup.bam \
+    O=fixed_Sample_bwa.sorted.markdup.bam \
     SORT_ORDER=coordinate \
     RGID=foo \
     RGLB=bar \
@@ -79,11 +81,11 @@ java -jar /home/zhanglei/software/picard.jar AddOrReplaceReadGroups \
 
 ```
 gatk BaseRecalibrator \
-    -I YN20220865-M35_S1_bwa.sorted.markdup.bam \
+    -I Sample_bwa.sorted.markdup.bam \
     -R /home/zhanglei/ref/GCF_GRCh38.p14_genomic.fna \
     --known-sites /home/zhanglei/ref/VCF/1000G_phase1.snps.high_confidence.hg38.vcf \
     --known-sites /home/zhanglei/ref/VCF/Mills_and_1000G_gold_standard.indels.hg38.vcf \
-    -O YN20220865-M35_S1.recal_data.table
+    -O Sample.recal_data.table
 ```
 
 ### 变异检测 - Variants Calling
@@ -91,7 +93,7 @@ gatk BaseRecalibrator \
 ```
 gatk --java-options "-Xmx4g" HaplotypeCaller \
     -R /home/zhanglei/ref/GCF_GRCh38.p14_genomic.fna \
-    -I fixed_YN20220865-M35_S1_bwa.sorted.markdup.bam \
+    -I fixed_Sample_bwa.sorted.markdup.bam \
     -A QualByDepth \
     -A RMSMappingQuality \
     -A MappingQualityRankSumTest \
@@ -99,7 +101,7 @@ gatk --java-options "-Xmx4g" HaplotypeCaller \
     -A FisherStrand \
     -A StrandOddsRatio \
     -A Coverage \
-    -O YN20220865-M35_S1.HC.vcf
+    -O Sample.HC.vcf
 ```
 
 ### 变异检测 - Select Variants
@@ -107,19 +109,19 @@ gatk --java-options "-Xmx4g" HaplotypeCaller \
 SNP:
 ```
 gatk SelectVariants \
-    -R /home/zhanglei/ref/GCF_GRCh38.p14_genomic.fna \
-    -V YN20220865-M35_S1.HC.vcf \
+    -R <ref.fasta> \
+    -V Sample.HC.vcf \
     --select-type-to-include SNP \
-    -O YN20220865-M35_S1_snps.vcf
+    -O Sample_snps.vcf
 ```
 
 Indel:
 ```
 gatk SelectVariants \
-    -R /home/zhanglei/ref/GCF_GRCh38.p14_genomic.fna \
-    -V YN20220865-M35_S1.HC.vcf \
+    -R <ref.fasta> \
+    -V Sample.HC.vcf \
     --select-type-to-include INDEL \
-    -O YN20220865-M35_S1_indels.vcf
+    -O Sample_indels.vcf
 ```
 
 ### 变异检测质控和过滤 - VQSR (Variant Quality Score Recalibration)
@@ -127,7 +129,7 @@ gatk SelectVariants \
 ```
 # SNPs VQSR
 gatk VariantRecalibrator \
-   -R <ucsc.hg3838.fasta> \
+   -R <ucsc.hg38.fasta> \
    -V <raw_snps.vcf> \
    --resource hapmap,known=false,training=true,truth=true,prior=15.0:hapmap_3.3.hg38.sites.vcf.gz \
    --resource omni,known=false,training=true,truth=false,prior=12.0:1000G_omni2.5.hg38.sites.vcf.gz \
